@@ -1,0 +1,25 @@
+{
+  "name": "pi-prompt-jump",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Jump between user prompts in Pi's fullscreen conversation without changing session history.",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/rrrrrrrrrricoxi/pi-prompt-jump.git" },
+  "homepage": "https://github.com/rrrrrrrrrricoxi/pi-prompt-jump#readme",
+  "bugs": { "url": "https://github.com/rrrrrrrrrricoxi/pi-prompt-jump/issues" },
+  "keywords": ["pi-package", "pi-extension", "prompt-navigation", "tui"],
+  "files": ["index.ts", "controller.ts", "navigation.ts", "templates.ts", "README.md", "CHANGELOG.md", "RELEASE-CHECKLIST.md", "LICENSE", "TEST-RESULTS.md"],
+  "pi": { "extensions": ["./index.ts"] },
+  "scripts": {
+    "test": "node test.mjs",
+    "test:terminal": "python3 -u tests/terminal-smoke.py",
+    "test:benchmark": "node tests/benchmark.mjs",
+    "test:package": "node tests/package-check.mjs",
+    "pack:check": "npm pack --dry-run --ignore-scripts"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "engines": { "node": ">=22.19.0" }
+}
