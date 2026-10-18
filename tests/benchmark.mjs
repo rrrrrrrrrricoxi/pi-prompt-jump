@@ -5,16 +5,7 @@ import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { mkdirSync, writeFileSync } from 'node:fs';
-const root = process.env.PI_INSTALL_ROOT || process.argv[2];
-if (!root) throw new Error('Supply an installed Pi 1.1.0 package directory.');
-const require = createRequire(`${root}/package.json`);
-assert.equal(require('./package.json').version, '1.1.0');
-const { createJiti } = require('jiti');
-const tuiPath = `${root}/node_modules/@earendil-works/pi-tui/dist/index.js`;
-const jiti = createJiti(import.meta.url, { alias: {
-  '@earendil-works/pi-tui': tuiPath,
-  '@earendil-works/pi-coding-agent': `${root}/dist/index.js`,
-}});
+import { root, jiti, tuiPath, hostVersion } from './runtime.mjs';
 const { Container } = await import(pathToFileURL(tuiPath));
 const { initTheme, getMarkdownTheme } = await import(pathToFileURL(`${root}/dist/modes/interactive/theme/theme.js`));
 const { UserMessageComponent } = await import(pathToFileURL(`${root}/dist/modes/interactive/components/user-message.js`));
@@ -29,7 +20,7 @@ const summary = values => {
   return { median_ms: ordered[Math.floor(ordered.length / 2)],
     p95_ms: ordered[Math.ceil(ordered.length * .95) - 1], max_ms: ordered.at(-1) };
 };
-const results = { host_version: '1.1.0', node_version: process.version, platform: process.platform,
+const results = { host_version: hostVersion, node_version: process.version, platform: process.platform,
   samples_per_case: 30, description: 'Real user/assistant components, tool-free synthetic prose and code; added collection cost, not complete terminal-frame latency.', cases: [] };
 for (const count of [100, 1000, 5000]) {
   const document = new Container();

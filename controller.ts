@@ -1,5 +1,6 @@
 import { ScrollView, VStack, isViewportTUI, parseColor, truncateToWidth, visibleWidth, type Component, type TUI } from "@earendil-works/pi-tui";
 import type { Theme } from "@earendil-works/pi-coding-agent";
+import { supportsHost } from "./host.ts";
 import { collectPrompts, precedingPrompt, navigationTarget, type PromptAnchor } from "./navigation.ts";
 
 // theme.style() treats strings as semantic tokens, not CSS colors. Parse once, outside rendering.
@@ -9,8 +10,8 @@ const stripColors = {
 };
 
 type MountedTUI = TUI & { getMountedRoots?: () => readonly Component[] };
-export function installStrip(tui: TUI, theme: Theme, labelFor: (text: string) => string | undefined = () => undefined) {
-  if (tui.mode !== "fullscreen" || !isViewportTUI(tui)) return undefined;
+export function installStrip(tui: TUI, theme: Theme, labelFor: (text: string) => string | undefined = () => undefined, version?: string) {
+  if (!supportsHost(version) || tui.mode !== "fullscreen" || !isViewportTUI(tui)) return undefined;
   const mounted = () => (tui as MountedTUI).getMountedRoots?.();
   const ownerKey = Symbol.for("notrico/sticky-prompt-strip/owner");
   let roots = mounted();
@@ -21,13 +22,16 @@ export function installStrip(tui: TUI, theme: Theme, labelFor: (text: string) =>
   const scrolls: ScrollView[] = [];
   function find(component: Component) {
     if (component instanceof ScrollView && component.primary) { scrolls.push(component); return; }
-    for (const child of (component as {children?:Component[]}).children || []) find(child);
+    const children = (component as {children?:Component[]}).children;
+    for (const child of Array.isArray(children) ? children : []) find(child);
   }
   find(original);
   if (scrolls.length !== 1) return undefined;
   const scroll = scrolls[0];
   const document = scroll.children[0];
-  if (!document) return undefined;
+  if (!document || typeof document.render !== "function" ||
+      !["getContentWidth", "scrollTo", "scrollToEnd"].every(key => typeof (scroll as any)[key] === "function") ||
+      typeof tui.setLayoutRoot !== "function" || typeof tui.requestRender !== "function") return undefined;
   let disposed = false;
   let generation = 0;
   let bookmark: { top: number; following: boolean } | undefined;

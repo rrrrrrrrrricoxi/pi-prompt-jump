@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Real Pi CLI/PTY smoke test; local deterministic provider, no credentials/network.
 Usage: python3 tests/terminal-smoke.py /path/to/installed/pi-coding-agent
-Requires POSIX Python 3 and an already installed Pi 1.1.0. No installs performed.
+Requires POSIX Python 3 and an already installed Pi 1.3.0. No installs performed.
 """
 import fcntl
 import json
@@ -19,8 +19,8 @@ import time
 
 PACKAGE = Path(__file__).resolve().parent.parent
 EXTENSION = Path(os.environ.get('PI_SMOKE_PACKAGE_DIR', PACKAGE)).resolve()
-HOST = Path(sys.argv[1]).resolve()
-assert json.loads((HOST / 'package.json').read_text())['version'] == '1.1.0'
+HOST = Path(sys.argv[1] if len(sys.argv) > 1 else os.environ.get('PI_INSTALL_ROOT', str(Path(os.environ.get('PI_RUNTIME', str(Path.home() / '.local/state/pi-config/current/runtime'))) / 'node_modules/@earendil-works/pi-coding-agent'))).resolve()
+assert json.loads((HOST / 'package.json').read_text())['version'] == '1.3.0'
 
 class Terminal:
     def __init__(self, directory):
@@ -49,6 +49,8 @@ class Terminal:
                 '--no-skills', '--no-prompt-templates', '--no-context-files',
                 '--no-themes', '--no-mcp', '--no-tools', '--tui-mode', 'fullscreen',
                 '--session-dir', str(self.sessions), '--model', 'smoke-fixture/fixture']
+        if os.environ.get('PI_COMPACT_RENDERER_PATH'):
+            args[args.index('--extension'):args.index('--extension')] = ['--extension', str(Path(os.environ['PI_COMPACT_RENDERER_PATH']).resolve() / 'index.ts')]
         self.pid, self.fd = pty.fork()
         if self.pid == 0:
             os.chdir(directory)

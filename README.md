@@ -4,8 +4,8 @@
 
 Prompt Jump adds a one-line sticky prompt strip and keyboard navigation to Pi's fullscreen conversation. It scrolls the displayed branch; it does not resend a prompt, fork a session, change model context, or edit history.
 
-> v0.1.0, licensed under MIT.
-> **Currently supported: Pi 1.1.0, fullscreen mode only.**
+> v0.2.0, licensed under MIT.
+> **Currently supported: Pi 1.3.0, fullscreen mode only.**
 > Component tests and an automated real-CLI pseudo-terminal smoke test passed; a synthetic long-session benchmark is recorded. See [TEST-RESULTS.md](TEST-RESULTS.md) for evidence and limits.
 
 ## Features
@@ -16,21 +16,21 @@ Prompt Jump adds a one-line sticky prompt strip and keyboard navigation to Pi's 
 - Return to the position before your most recent prompt jump with `/prompt-jump back`.
 - Resume following new output with `/prompt-jump end`.
 - Recognize native skill invocations and label matching prompt templates by slash-command name.
-- Recompute positions from rendered heights, including wrapped text and expanded tools.
+- Recompute positions from rendered heights, including wrapped text, collapsed/expanded prompt templates, and expanded tool groups.
 
 ## Install
 
 ```sh
-pi install npm:pi-prompt-jump@0.1.0
+pi install npm:pi-prompt-jump@0.2.0
 ```
 
 Or install from GitHub:
 
 ```sh
-pi install git:github.com/rrrrrrrrrricoxi/pi-prompt-jump@v0.1.0
+pi install git:github.com/rrrrrrrrrricoxi/pi-prompt-jump@v0.2.0
 ```
 
-Requires **Pi 1.1.0 fullscreen**. Installation adds the package to your Pi settings. Do not enable it alongside the original sticky-prompt-strip addon: they share commands and layout integration.
+Requires **Pi 1.3.0 fullscreen**. Installation adds the package to your Pi settings. Do not enable it alongside the original sticky-prompt-strip addon: they share commands and layout integration.
 
 The `pi-package` keyword makes the npm package eligible for Pi's official catalog. Catalog indexing can lag behind publication.
 
@@ -65,15 +65,17 @@ Shortcuts depend on your terminal forwarding modified arrow keys. If the termina
 
 ## Compatibility and limits
 
-This is **version-specific UI integration**, not a stable public transcript-navigation API. It uses public layout/scroll operations but also inspects Pi 1.1.0's mounted root and user/skill component shapes. Other host versions do not mount the strip. Regular terminal mode, RPC, JSON, and print modes do not offer navigation. Settings/status commands remain available.
+This is **version-specific UI integration**, not a stable public transcript-navigation API. It uses public layout/scroll operations but also inspects Pi 1.3.0's mounted root and user/skill component shapes. Other host versions do not mount the strip. Regular terminal mode, RPC, JSON, and print modes do not offer navigation. Settings/status commands remain available.
 
 - Only prompts represented by recognized text/skill components in the currently displayed branch are navigable. Image-only prompts are not indexed.
 - The strip is hidden below eight terminal rows.
 - Session switches and tree navigation clear the return position and invalidate an open prompt picker.
 - Only one return position is stored, not a back-stack. Resizing or changing rendered heights can shift that row-based return position.
 - Root replacement by another extension can unmount the strip. Check `/sticky-prompt status`; `/sticky-prompt on` attempts to mount again. Cleanup never overwrites a foreign replacement root.
-- Collection walks and renders the displayed component tree to calculate positions. In a synthetic benchmark, warm collection medians were about 0.61 ms at 1,000 prompts and 5.6 ms at 5,000 prompts; cold collection/resize reached hundreds of milliseconds at 5,000 prompts. These are local fixture measurements, not complete frame timings or a performance guarantee. See [TEST-RESULTS.md](TEST-RESULTS.md).
+- Collection walks and renders the displayed component tree to calculate positions. In a synthetic benchmark, warm collection medians were about 1.2 ms at 1,000 prompts and 8.1 ms at 5,000 prompts; cold collection/resize reached hundreds of milliseconds at 5,000 prompts. These are local fixture measurements, not complete frame timings or a performance guarantee. See [TEST-RESULTS.md](TEST-RESULTS.md).
 - Template recognition is conservative and heuristic: it reads registered prompt-template files, ignores short/dynamic-only templates, and matches fixed segments. An unrecognized template shows its first text line instead.
+
+The isolated `host.ts` adapter checks the tested host version and native card identities/shapes. Prompt Jump does not replace component render methods. It measures the final rendered cards, including compact-renderer wrappers, and preserves foreign roots during cleanup.
 
 No Pi installation files are patched. No runtime dependencies are bundled; Pi supplies its own host modules.
 
@@ -87,9 +89,9 @@ As with every Pi extension, it runs with the host process's permissions; these d
 
 ## Tests
 
-Run tests from the source checkout; the distributable package omits the test harness. Tests use an **already installed Pi 1.1.0** and its real components/themes, with a simulated fullscreen root/terminal and isolated temporary preferences. No dependency installation or model call is needed.
+Run tests from the source checkout; the distributable package omits the test harness. Tests use an **already installed Pi 1.3.0** and its real components/themes, with a simulated fullscreen root/terminal and isolated temporary preferences. No dependency installation or model call is needed.
 
-If Pi is resolvable locally:
+Tests resolve Pi locally or from the tracked `~/.local/state/pi-config/current/runtime`. `PI_RUNTIME` can select another runtime directory. Both hoisted and nested host dependencies are supported:
 
 ```sh
 npm test
@@ -112,6 +114,15 @@ npm run test:package -- /path/to/installed/pi-coding-agent
 ```
 
 The package test creates an offline npm archive, checks its exact file list, extracts it, and reruns the terminal suite against the shipped entry without installing dependencies.
+
+The optional coexistence suite uses the sibling `compact-tool-renderers` source checkout, or an explicit `PI_COMPACT_RENDERER_PATH`:
+
+```sh
+PI_COMPACT_RENDERER_PATH=/path/to/compact-tool-renderers npm run test:coexistence
+PI_COMPACT_RENDERER_PATH=/path/to/compact-tool-renderers npm run test:terminal
+```
+
+It verifies both package loading orders, final native prompt/thinking/tool heights, independent Alt+G/T/I and Alt+Shift+arrow routing, back/end, reload cleanup, foreign-root ownership, and unchanged recorded source. The terminal option loads both extensions into the isolated real CLI. These checks do not cover every third-party extension.
 
 The terminal suite requires Python 3 on a POSIX system. It uses temporary HOME/settings/session directories, a local deterministic streaming fixture, and a fail-closed network guard—no real provider credentials or model calls. The fixture/probe is excluded from the extension manifest and npm file list. It verifies actual CLI keyboard/mouse routing, resize, reload, session/tree navigation, and a 1,000-prompt session. It does not prove OS shortcut forwarding, physical trackpad behavior, every terminal application, or third-party extension compatibility.
 

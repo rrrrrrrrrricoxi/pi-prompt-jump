@@ -1,6 +1,6 @@
-# Test results — v0.1.0
+# Test results — v0.2.0
 
-Tested locally on macOS with Node.js v26.11.1 and installed Pi 1.1.0. No package was published or installed into the active user configuration during testing.
+Tested locally on macOS with Node.js v26.11.1 and installed Pi 1.3.0. No package was published or installed into the active user configuration during testing.
 
 ## Component and handler tests
 
@@ -25,11 +25,19 @@ Verified through terminal input and observation of the actual mounted layout:
 
 All four generated assistant responses were produced by the local fixture with zero model tokens. A preloaded network guard rejects fetch, socket connections, and ordinary DNS lookup; it remained silent. Provider credentials are not passed into the child. The fixture/probe is not included in the published package manifest or npm file list.
 
-This is automated PTY testing, **not** a manual test in every terminal application. OS shortcut interception, physical trackpad behavior, tmux/SSH forwarding, Windows, and combinations with third-party layout extensions remain unverified. The component suite verifies cleanup when a foreign root replaces the layout, but this is not blanket compatibility with every extension.
+This is automated PTY testing, **not** a manual test in every terminal application. OS shortcut interception, physical trackpad behavior, tmux/SSH forwarding, Windows, and other third-party layout extensions remain unverified. The component suite verifies cleanup when a foreign root replaces the layout, but this is not blanket compatibility with every extension.
+
+## Compact renderer coexistence
+
+`npm run test:coexistence` passed against the sibling `compact-tool-renderers` source with Pi 1.3.0. The test loads both complete extension entry points in both orders, then registers again after shutdown. It uses native user, assistant, and tool-execution components with invented records; no execution, history-write, or model API is provided.
+
+Verified collapsed/expanded template, thinking, and success-group heights against final native rendering; wrapped/Unicode text; independent Alt+G/T/I and Alt+Shift+arrow routing; back/end; one strip wrapper after reload; replacement of all three renderer input listeners; foreign-root ownership; native prototype restoration; and exact recorded source text. The strip does not patch component render methods.
+
+The combined real-CLI PTY run uses `PI_COMPACT_RENDERER_PATH` and the same deterministic provider as the standalone run. It checks terminal routing and lifecycle with both extensions loaded. This fixture does not execute real tools; the native-component coexistence suite exercises tool-group expansion.
 
 ## Shipped package validation
 
-`npm run test:package -- /path/to/installed/pi-coding-agent` passed. It creates the npm archive locally with offline mode and lifecycle scripts disabled, checks the exact ten-file allowlist and MIT/extension manifest, extracts it into a temporary directory, and reruns the complete actual-CLI smoke suite against the **extracted package entry**, not the source checkout. No dependencies are installed. The test-only provider/probe remains in the source checkout and is not shipped.
+`npm run test:package -- /path/to/installed/pi-coding-agent` passed. It creates the npm archive locally with offline mode and lifecycle scripts disabled, checks the exact eleven-file allowlist and MIT/extension manifest, extracts it into a temporary directory, and reruns the complete actual-CLI smoke suite against the **extracted package entry**, not the source checkout. No dependencies are installed. The test-only provider/probe remains in the source checkout and is not shipped.
 
 ## Synthetic long-session benchmark
 
@@ -37,11 +45,11 @@ This is automated PTY testing, **not** a manual test in every terminal applicati
 
 | Prompts / messages | Rendered rows | Warm collection median | Warm collection p95 | Cold collection | Resize to 40 columns |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| 100 / 200 | 3,200 | 0.08 ms | 0.26 ms | 31 ms | 11 ms |
-| 1,000 / 2,000 | 32,000 | 0.61 ms | 4.6 ms | 92 ms | 70 ms |
-| 5,000 / 10,000 | 160,000 | 5.6 ms | 9.1 ms | 357 ms | 254 ms |
+| 100 / 200 | 3,200 | 0.15 ms | 0.31 ms | 30 ms | 7.3 ms |
+| 1,000 / 2,000 | 32,000 | 1.2 ms | 2.6 ms | 89 ms | 52 ms |
+| 5,000 / 10,000 | 160,000 | 8.1 ms | 9.8 ms | 371 ms | 249 ms |
 
-These measure prompt collection, **not complete terminal-frame latency**. For comparison, warm document-render medians were approximately 0.10, 0.50, and 4.7 ms respectively. Prompt collection renders components and relies on their caches; it can add work to an ordinary frame. Cold collection includes initially uncached component rendering, so these timings cannot be attributed solely to this extension.
+These measure prompt collection, **not complete terminal-frame latency**. For comparison, warm document-render medians were approximately 0.07, 0.47, and 3.0 ms respectively. Prompt collection renders components and relies on their caches; it can add work to an ordinary frame. Cold collection includes initially uncached component rendering, so these timings cannot be attributed solely to this extension.
 
 Conclusion: navigation was functional in the actual CLI at 1,000 prompts. Cached collection was inexpensive in this synthetic fixture, but very large-session startup/resize can visibly pause. No worst-case guarantee is claimed for tools, images, complex Markdown, larger payloads, other machines, or concurrent load.
 
@@ -49,7 +57,7 @@ The benchmark records every warm observation and unrounded summaries in local `t
 
 ## Release verification boundaries
 
-- GitHub/npm publication was explicitly approved; credentials are not included in the repository or package.
+- v0.2.0 source is prepared for the parent integration/release task. No v0.2.0 tag, commit, push, npm publication, installation, or activation was performed by this compatibility task. Credentials are not included in the repository or package.
 - A short demo is optional release polish; it has not been recorded.
 - Registry artifact and catalog discovery checks are separate post-publication steps; the local tests above do not establish either one.
 - Installation into the active user configuration is not part of these tests.

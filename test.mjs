@@ -1,24 +1,11 @@
 import assert from 'node:assert/strict';
-import {createRequire} from 'node:module';
 import {pathToFileURL} from 'node:url';
 import {mkdtempSync,readFileSync,writeFileSync,existsSync,rmSync} from 'node:fs';
-import {dirname,join} from 'node:path';
+import {join} from 'node:path';
 import {tmpdir} from 'node:os';
-// Use an explicitly supplied installed host, or resolve a local development host.
-// No network, dependency installation, or Pi CLI/model invocation is needed.
-const localRequire=createRequire(import.meta.url);
-let root=process.env.PI_INSTALL_ROOT || process.argv[2];
-if(!root) {
- try { root=dirname(dirname(localRequire.resolve('@earendil-works/pi-coding-agent'))); }
- catch { throw new Error('Set PI_INSTALL_ROOT to your installed Pi 1.1.0 package directory, or pass it after npm test --.'); }
-}
-const require=createRequire(`${root}/package.json`);
-assert.equal(require('./package.json').version,'1.1.0','Integration tests require Pi 1.1.0');
-const {createJiti}=require('jiti');
-const tuiPath=`${root}/node_modules/@earendil-works/pi-tui/dist/index.js`;
-const jiti=createJiti(import.meta.url,{alias:{'@earendil-works/pi-tui':tuiPath,'@earendil-works/pi-coding-agent':`${root}/dist/index.js`}});
+import { root, tuiPath, tuiRoot, jiti } from './tests/runtime.mjs';
 const {Container,Text,ScrollView,VStack,visibleWidth,parseColor,foregroundAnsi,backgroundAnsi,matchesKey}=await import(pathToFileURL(tuiPath));
-const {VIEWPORT_TUI}=await import(pathToFileURL(`${root}/node_modules/@earendil-works/pi-tui/dist/tui.js`));
+const {VIEWPORT_TUI}=await import(pathToFileURL(`${tuiRoot}/dist/tui.js`));
 const {initTheme,getMarkdownTheme,theme,loadThemeFromPath,setThemeInstance,getAvailableThemesWithPaths,setTerminalColors,setTerminalColorScheme}=await import(pathToFileURL(`${root}/dist/modes/interactive/theme/theme.js`));
 const {UserMessageComponent}=await import(pathToFileURL(`${root}/dist/modes/interactive/components/user-message.js`));
 const {SkillInvocationMessageComponent}=await import(pathToFileURL(`${root}/dist/modes/interactive/components/skill-invocation-message.js`));
@@ -42,6 +29,16 @@ assert.equal(nav.navigationTarget(anchors,anchors[0].row,'prev'),undefined);
 assert.equal(nav.navigationTarget(anchors,anchors[0].row,'next'),anchors[1]);
 assert.ok(nav.collectPrompts(doc,20).anchors[1].end > anchors[1].end);
 assert.equal(nav.firstLine('first line\nsecond line'),'first line');
+// Unknown/subclass shapes must keep native height without becoming fake anchors.
+const PretendUser=class UserMessageComponent extends Container {};
+const pretend=new PretendUser(); pretend.text='not a native user card'; pretend.addChild(new Text('opaque row',0,0));
+assert.equal(nav.collectPrompts(pretend,80).anchors.length,0);
+const Group=class Container extends Text {};
+const opaqueGroup=new Group('expanded group\nsecond row\nthird row',0,0);
+opaqueGroup.children=[new Text('misleading internal child',0,0)];
+const opaqueDoc=new Container(); opaqueDoc.addChild(opaqueGroup); opaqueDoc.addChild(new UserMessageComponent('after group',getMarkdownTheme(),1));
+assert.equal(nav.collectPrompts(opaqueDoc,80).anchors[0].row,opaqueGroup.render(80).length);
+
 assert.ok(!nav.firstLine('\x1b]52;c;secret\x07safe').includes('\x1b'));
 const scroll=new ScrollView(doc,{follow:'end',primary:true});
 scroll.updateLayout(height,6,()=>{});
@@ -105,6 +102,9 @@ replacement.dispose(); assert.equal(currentRoot,original);
 const next=installStrip(tui,theme); const otherRoot=new VStack([new Text('another extension',0,0)]); currentRoot=otherRoot;
 next.dispose(); assert.equal(currentRoot,otherRoot);
 assert.equal(installStrip({...tui,mode:'regular'},theme),undefined);
+assert.equal(installStrip(tui,theme,undefined,'1.1.0'),undefined);
+assert.equal(installStrip(tui,theme,undefined,'9.0.0'),undefined);
+assert.equal(currentRoot,otherRoot,'unsupported host leaves the foreign root untouched');
 assert.equal(installStrip({...tui,getMountedRoots:undefined},theme),undefined);
 assert.ok(renders>0);
 // Register and exercise the actual extension handlers, not just navigation helpers.

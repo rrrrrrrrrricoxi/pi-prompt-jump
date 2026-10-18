@@ -1,5 +1,4 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { VERSION } from "@earendil-works/pi-coding-agent";
 import { readFileSync, writeFileSync, renameSync, mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -23,7 +22,7 @@ export default function promptJump(pi: ExtensionAPI) {
       clean();
       // getMountedRoots and the two prompt-component shapes are version-specific inspection.
       // All layout changes use public setLayoutRoot/ScrollView APIs; no Pi files are patched.
-      if (VERSION === "1.1.0") controller = installStrip(tui, theme, text => {
+      controller = installStrip(tui, theme, text => {
         const template = matchingTemplate(text, templates);
         return template ? `/${template}` : undefined;
       });
@@ -38,10 +37,10 @@ export default function promptJump(pi: ExtensionAPI) {
   pi.on("session_tree", () => controller?.reset());
   pi.on("session_shutdown", clean);
   pi.registerCommand("sticky-prompt", {
-    description: "Sticky prompt strip: On/Off menu, or on | off | status (fullscreen Pi 1.1.0)",
+    description: "Sticky prompt strip: On/Off menu, or on | off | status (fullscreen Pi 1.3.0)",
     handler: async (args, ctx) => {
       let action = args.trim();
-      const mountStatus = () => controller?.mounted ? "mounted in fullscreen" : "not mounted (requires Pi 1.1.0 fullscreen; use on after a renderer remount)";
+      const mountStatus = () => controller?.mounted ? "mounted in fullscreen" : "not mounted (requires Pi 1.3.0 fullscreen; use on after a renderer remount)";
       if (!action && ctx.mode === "tui" && ctx.hasUI) {
         const choices = [enabled ? "On (current preference)" : "On", enabled ? "Off" : "Off (current preference)"];
         const selected = await ctx.ui.select(`Sticky prompt — preference: ${enabled ? "On" : "Off"}; ${mountStatus()}`, choices);
@@ -71,7 +70,7 @@ export default function promptJump(pi: ExtensionAPI) {
   pi.registerCommand("prompt-jump", {
     description: "Scroll only: current | prev | next | last | back | end | list",
     handler: async (args, ctx) => {
-      if (ctx.mode !== "tui" || !ctx.hasUI || !controller?.mounted) { ctx.ui.notify("Enable the strip with /sticky-prompt on in fullscreen Pi 1.1.0.", "warning"); return; }
+      if (ctx.mode !== "tui" || !ctx.hasUI || !controller?.mounted) { ctx.ui.notify("Enable the strip with /sticky-prompt on in fullscreen Pi 1.3.0.", "warning"); return; }
       const action = args.trim() || "current";
       if (action === "list") {
         const active = controller;
