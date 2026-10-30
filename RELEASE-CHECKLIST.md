@@ -1,23 +1,22 @@
-# Release checklist — v0.2.0
+# Release checklist — v0.3.0
 
-## Local compatibility checks
+## Package checks
 
-- [x] Use the existing `pi-prompt-jump` package and `rrrrrrrrrricoxi/pi-prompt-jump` repository with MIT licensing.
-- [x] Verify native Pi 1.3.0 user/skill cards, final rendered heights, fullscreen viewport, and layout cleanup. Retain an explicit version/shape guard.
-- [x] Run native component/handler checks with isolated preferences and no model/history mutation APIs.
-- [x] Run real-CLI PTY checks with a deterministic local provider and fail-closed network guard, including reload, picker, click, resize, session/tree changes, and 1,000 prompts.
-- [x] Check both loading orders with compact-tool-renderers, native collapsed/expanded prompt/thinking/tool heights, independent shortcuts, and cleanup ownership.
-- [x] Benchmark 100, 1,000, and 5,000 synthetic prompts; record sample sizes and cold/resize limits in TEST-RESULTS.md.
-- [x] Pack offline, verify the exact eleven-file allowlist, extract, and rerun the CLI suite against the extracted entry. Tests/provider fixtures are excluded.
+- [x] Replace the exact-version gate with required capability and shape checks. Missing exports and unsupported layouts fail safely with a useful status.
+- [x] Verify real Pi 1.3.0 and managed Pi 1.4.0 components, themes, navigation, preferences, and lifecycle cleanup.
+- [x] Verify compatible APIs under an arbitrary version label. This fixture does not guarantee future compatibility.
+- [x] Run actual-CLI PTY checks on Pi 1.4.0 with isolated state, a deterministic local provider, and a network guard. Pi 1.3.0 CLI evidence predates the four-action interface; its final component suite passed.
+- [x] Complete the offline pack/extract check and actual-CLI suite against the extracted candidate on Pi 1.4.0.
+- [x] Review the final diff and updated evidence in TEST-RESULTS.md.
 
 ## Parent integration and release
 
-- [x] Review the final diff and package evidence. Verify the personal GitHub author/auth route without changing saved accounts.
-- [x] Commit the approved source, create `v0.2.0`, and push the release through the established account/proxy route.
-- [ ] Publish `pi-prompt-jump@0.2.0`; run `npm run test:package -- /path/to/pi-coding-agent --published` to compare the registry artifact with source.
-- [x] Pin `npm:pi-prompt-jump@0.2.0` (or the exact `v0.2.0` Git release) in the authoritative Pi installation configuration; avoid loading the original sticky-prompt-strip addon concurrently.
-- [ ] Verify public release/registry metadata and catalog discovery separately. Catalog indexing is not guaranteed by publication.
-- [x] Stage and verify the tracked installation on MacBook and CCC. Activate only through the parent task's existing guards.
-- [ ] Verify physical terminal/OS shortcut forwarding and mosh/tmux operation with harmless records. Automated PTY checks do not establish these results.
+- [x] Verify current Fold integration with `/prompt-jump [on | off | status | list]` in isolated actual-CLI PTY previews on both reviewed hosts. Final four-action checks passed. The old component coexistence fixture uses an obsolete renderer registration API and cannot establish this result.
+- [x] Complete live user acceptance of the four-action command interface (2026-10-30, both reviewed hosts).
+- [ ] Confirm the release decision and GitHub author/auth route; preserve saved accounts.
+- [ ] Commit, tag, push, and publish only through the parent release workflow.
+- [ ] Verify published metadata and compare the registry artifact with approved source. Catalog indexing is a separate check.
+- [ ] Update the authoritative Pi configuration and verify the staged installation on both hosts through the parent workflow.
+- [ ] Verify physical terminal/OS shortcuts and mosh/tmux forwarding. Automated PTY checks do not establish these results.
 
-Release update (2026-10-18): `v0.2.0` at `96c7015bfc7eb461a5c0fd0c3b36c5e10f8516c2` and its packed archive are published on GitHub. Pi Config 1.6.0 pins that exact Git revision and is active on MacBook and CCC. Package and CLI checks passed. npm authentication returned E401, so npm remains at 0.1.0; registry artifact comparison and catalog indexing are not claimed. Slash-command navigation is the supported fallback where macOS Option or mosh/tmux does not forward modified keys. Physical shortcut forwarding and normal installed-session acceptance remain on the Pi Config acceptance plan. Keep credentials, private content, generated fixtures, and machine-specific paths out of the release.
+Package tests and user review are complete. Publication and installation receipts are recorded separately. Keep credentials, private content, generated fixtures, and machine-specific paths out of the release.

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 — candidate
+
+- Use only `/prompt-jump [on | off | status | list]`. The bare command shows short usage text without opening a menu. Add prefix-filtered argument completion. Remove the old command and extra navigation subcommands; keep previous/next keyboard shortcuts and the prompt picker.
+
+- Replace the exact Pi version gate with checks for native prompt cards, UI exports, fullscreen layout, and chat scrolling capabilities. Tested on Pi 1.3.0 and 1.4.0; future compatibility is not guaranteed.
+- Keep unsupported layouts unchanged and report why the strip could not mount. Missing native/UI exports disable mounting safely.
+- Test missing capabilities and unchanged APIs under an arbitrary version label, alongside existing navigation, preference, and lifecycle regressions.
+- Select the current managed Pi runtime in the test harness; retain explicit runtime paths and the tracked-runtime fallback.
+
 ## 0.2.0 — 2026-10-18
 
 - Adapt fullscreen navigation to the tested Pi 1.3.0 native user/skill cards and chat viewport.

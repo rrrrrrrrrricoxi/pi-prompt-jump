@@ -1,37 +1,45 @@
-import { ScrollView, VStack, isViewportTUI, parseColor, truncateToWidth, visibleWidth, type Component, type TUI } from "@earendil-works/pi-tui";
+import * as ui from "@earendil-works/pi-tui";
+import type { Component, TUI, ScrollView } from "@earendil-works/pi-tui";
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { supportsHost } from "./host.ts";
+import { hostUnavailableReason } from "./host.ts";
 import { collectPrompts, precedingPrompt, navigationTarget, type PromptAnchor } from "./navigation.ts";
 
-// theme.style() treats strings as semantic tokens, not CSS colors. Parse once, outside rendering.
-const stripColors = {
-  light: { fg: parseColor("#454545"), bg: parseColor("#e4e4e4") },
-  dark: { fg: parseColor("#c8c8c8"), bg: parseColor("#303238") },
-};
-
-type MountedTUI = TUI & { getMountedRoots?: () => readonly Component[] };
-export function installStrip(tui: TUI, theme: Theme, labelFor: (text: string) => string | undefined = () => undefined, version?: string) {
-  if (!supportsHost(version) || tui.mode !== "fullscreen" || !isViewportTUI(tui)) return undefined;
-  const mounted = () => (tui as MountedTUI).getMountedRoots?.();
+type MountedTUI = TUI & { getMountedRoots: () => readonly Component[] };
+export function installStrip(tui: TUI, theme: Theme, labelFor: (text: string) => string | undefined = () => undefined,
+  onUnavailable: (reason: string) => void = () => {}) {
+  const unavailable = (reason: string) => { onUnavailable(reason); return undefined; };
+  const reason = hostUnavailableReason(tui, theme);
+  if (reason) return unavailable(reason);
+  const { ScrollView, VStack, parseColor, truncateToWidth, visibleWidth } = ui;
+  const mounted = () => (tui as MountedTUI).getMountedRoots();
   const ownerKey = Symbol.for("notrico/sticky-prompt-strip/owner");
   let roots = mounted();
   const previous = roots?.[0] as any;
   if (previous?.[ownerKey]?.dispose) { previous[ownerKey].dispose(); roots = mounted(); }
-  if (!roots || roots.length !== 1 || !(roots[0] instanceof VStack)) return undefined;
+  if (!Array.isArray(roots) || roots.length !== 1 || !(roots[0] instanceof VStack)) return unavailable("requires one native VStack layout root");
   const original = roots[0];
   const scrolls: ScrollView[] = [];
+  let invalidTree = false;
   function find(component: Component) {
+    if (!component || typeof component.render !== "function") { invalidTree = true; return; }
     if (component instanceof ScrollView && component.primary) { scrolls.push(component); return; }
     const children = (component as {children?:Component[]}).children;
     for (const child of Array.isArray(children) ? children : []) find(child);
   }
   find(original);
-  if (scrolls.length !== 1) return undefined;
+  if (invalidTree) return unavailable("unsupported layout component shape");
+  if (scrolls.length !== 1) return unavailable("requires one primary chat ScrollView");
   const scroll = scrolls[0];
-  const document = scroll.children[0];
+  const document = Array.isArray(scroll.children) && scroll.children.length === 1 ? scroll.children[0] : undefined;
   if (!document || typeof document.render !== "function" ||
       !["getContentWidth", "scrollTo", "scrollToEnd"].every(key => typeof (scroll as any)[key] === "function") ||
-      typeof tui.setLayoutRoot !== "function" || typeof tui.requestRender !== "function") return undefined;
+      !Number.isFinite(scroll.scrollTop) || !Number.isFinite(scroll.viewportHeight) ||
+      typeof scroll.isFollowingEnd !== "boolean") return unavailable("unsupported chat ScrollView shape");
+  // Parse only after capability checks, so missing exports cannot crash startup.
+  const stripColors = {
+    light: { fg: parseColor("#454545"), bg: parseColor("#e4e4e4") },
+    dark: { fg: parseColor("#c8c8c8"), bg: parseColor("#303238") },
+  };
   let disposed = false;
   let generation = 0;
   let bookmark: { top: number; following: boolean } | undefined;

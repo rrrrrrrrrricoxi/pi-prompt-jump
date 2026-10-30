@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Real Pi CLI/PTY smoke test; local deterministic provider, no credentials/network.
 Usage: python3 tests/terminal-smoke.py /path/to/installed/pi-coding-agent
-Requires POSIX Python 3 and an already installed Pi 1.3.0. No installs performed.
+Requires POSIX Python 3 and an already installed compatible Pi. No installs performed.
 """
 import fcntl
 import json
@@ -19,8 +19,13 @@ import time
 
 PACKAGE = Path(__file__).resolve().parent.parent
 EXTENSION = Path(os.environ.get('PI_SMOKE_PACKAGE_DIR', PACKAGE)).resolve()
-HOST = Path(sys.argv[1] if len(sys.argv) > 1 else os.environ.get('PI_INSTALL_ROOT', str(Path(os.environ.get('PI_RUNTIME', str(Path.home() / '.local/state/pi-config/current/runtime'))) / 'node_modules/@earendil-works/pi-coding-agent'))).resolve()
-assert json.loads((HOST / 'package.json').read_text())['version'] == '1.3.0'
+# Share runtime selection with component/package tests.
+import subprocess
+HOST = Path(subprocess.check_output(
+    ['node', '--input-type=module', '-e',
+     'import {root} from '+json.dumps((PACKAGE / 'tests/runtime.mjs').as_uri())+'; console.log(root)',
+     ], text=True,
+    env={**os.environ, **({'PI_INSTALL_ROOT': sys.argv[1]} if len(sys.argv) > 1 else {})}).strip()).resolve()
 
 class Terminal:
     def __init__(self, directory):
@@ -162,7 +167,7 @@ with tempfile.TemporaryDirectory(prefix='pi-prompt-jump-terminal-') as directory
             state = terminal.until(lambda s: len(s['anchors']) == index and s['idle'])
             if index == 3:
                 assert state['top'] == paused['top'] and not state['following'], state
-                terminal.command('/prompt-jump back')
+                terminal.send('\x1b[1;5F')  # Native Ctrl+End resumes following.
                 state = terminal.snapshot()
             assert state['following'], state
         assert [a['label'] for a in state['anchors']] == [f'Synthetic prompt {i}' for i in range(1, 4)]
@@ -177,10 +182,10 @@ with tempfile.TemporaryDirectory(prefix='pi-prompt-jump-terminal-') as directory
         terminal.send('\x1b[1;4B')
         state = terminal.snapshot()
         assert state['top'] == state['anchors'][2]['row'], state
-        terminal.command('/prompt-jump back')
+        terminal.send('\x1b[1;5F')  # Native Ctrl+End resumes following.
         state = terminal.snapshot()
-        assert state['top'] == state['anchors'][1]['row'], state
-        print('PASS: real modified-key routing and back position')
+        assert state['following'], state
+        print('PASS: real modified-key routing and native Ctrl+End')
 
         before = state['top']
         terminal.command('/prompt-jump list')
@@ -191,6 +196,26 @@ with tempfile.TemporaryDirectory(prefix='pi-prompt-jump-terminal-') as directory
         state = terminal.snapshot()
         assert state['top'] == state['anchors'][0]['row'], state
         print('PASS: prompt picker selection and Escape cancellation')
+
+        terminal.send('\x1b[1;5F')  # Status/usage notifications are appended at the conversation end.
+        terminal.command('/prompt-jump')
+        assert 'Usage: /prompt-jump [on | off | status | list]' in terminal.text()
+        terminal.paste('no-menu-marker')
+        assert terminal.snapshot()['editor'] == 'no-menu-marker'  # No modal intercepted the text.
+        terminal.send('\x15')
+        terminal.command('/prompt-jump status')
+        assert 'Prompt Jump preference: enabled; mounted in fullscreen' in terminal.text()
+        for character in '/prompt-jump of':
+            terminal.send(character)  # Normal typing triggers native argument suggestions.
+        terminal.send('\t')
+        completion = terminal.snapshot()
+        assert completion['editor'].strip() == '/prompt-jump off', completion
+        terminal.send('\x15')
+        terminal.command('/prompt-jump list')
+        terminal.send('\r')
+        state = terminal.snapshot()
+        assert state['top'] == state['anchors'][0]['row'], state
+        print('PASS: four-action interface, bare usage without modal, status, and native argument completion')
 
         terminal.send('\x1b[6~')  # PageDown places viewport inside first response.
         state = terminal.snapshot()
@@ -207,17 +232,18 @@ with tempfile.TemporaryDirectory(prefix='pi-prompt-jump-terminal-') as directory
         for columns, rows in [(40, 12), (100, 36), (80, 24)]:
             terminal.resize(columns, rows)
             terminal.drain(0.2)
-            terminal.command('/prompt-jump last')
+            terminal.send('\x1b[1;5F')
+            terminal.send('\x1b[1;4A')  # Previous prompt from the bottom targets the last prompt.
             state = terminal.snapshot()
             assert state['mounted'] and state['roots'] == 1 and state['viewportHeight'] > 0, state
             assert state['top'] == state['anchors'][-1]['row'], state
         print('PASS: actual SIGWINCH resize and recalculated jump positions')
 
-        terminal.command('/sticky-prompt off')
+        terminal.command('/prompt-jump off')
         assert not terminal.snapshot()['mounted']
         preference = terminal.agent / 'pi-prompt-jump.json'
         assert json.loads(preference.read_text())['enabled'] is False
-        terminal.command('/sticky-prompt on')
+        terminal.command('/prompt-jump on')
         assert terminal.snapshot()['mounted']
         assert json.loads(preference.read_text())['enabled'] is True
         terminal.command('/reload')
@@ -240,7 +266,8 @@ with tempfile.TemporaryDirectory(prefix='pi-prompt-jump-terminal-') as directory
         terminal.send('\r')
         state = terminal.until(lambda s: s['sessionId'] == old_session)
         assert state['mounted'] and len(state['anchors']) == 3, state
-        terminal.command('/prompt-jump last')
+        terminal.send('\x1b[1;5F')
+        terminal.send('\x1b[1;4A')
         state = terminal.snapshot()
         assert state['top'] == state['anchors'][-1]['row'], state
         print('PASS: actual /resume picker restores the original session and correct anchors')
@@ -251,11 +278,9 @@ with tempfile.TemporaryDirectory(prefix='pi-prompt-jump-terminal-') as directory
         terminal.send('\r')
         state = terminal.until(lambda s: len(s['anchors']) == 2 and s['editor'] == '')
         assert state['mounted'], state
-        terminal.command('/prompt-jump back')
-        assert 'No prompt/return position in that direction.' in terminal.text()[-5000:]
-        terminal.command('/prompt-jump end')
+        terminal.send('\x1b[1;5F')  # Native Ctrl+End.
         assert terminal.snapshot()['following']
-        print('PASS: actual /tree branch navigation drops old anchors/bookmark; end resumes following')
+        print('PASS: actual /tree branch navigation displays correct anchors; native Ctrl+End resumes following')
 
         assert 'SMOKE TEST: network access is forbidden' not in terminal.text()
         assert 'Extension Errors' not in terminal.text()
@@ -298,12 +323,14 @@ with tempfile.TemporaryDirectory(prefix='pi-prompt-jump-terminal-') as directory
         terminal.send('\r')
         state = terminal.snapshot()
         assert state['top'] == state['anchors'][0]['row'], state
-        terminal.command('/prompt-jump last')
+        terminal.send('\x1b[1;5F')
+        terminal.send('\x1b[1;4A')
         state = terminal.snapshot()
         assert state['top'] == state['anchors'][-1]['row'], state
         terminal.resize(40, 12)
         terminal.drain(0.3)
-        terminal.command('/prompt-jump last')
+        terminal.send('\x1b[1;5F')
+        terminal.send('\x1b[1;4A')
         state = terminal.snapshot()
         assert state['top'] == state['anchors'][-1]['row'], state
         print('PASS: actual CLI import, picker, first/last jumps and resize with 1,000 prompts / 2,000 messages')

@@ -1,4 +1,5 @@
-import { Spacer, type Component } from "@earendil-works/pi-tui";
+import * as ui from "@earendil-works/pi-tui";
+import type { Component } from "@earendil-works/pi-tui";
 
 import { containerChildren, skillBlock, userText } from "./host.ts";
 export type PromptAnchor = { row: number; end: number; text: string; label: string };
@@ -34,7 +35,7 @@ export function collectPrompts(document: Component, width: number, labelFor: (te
     if (children) {
       let skipSkillArguments = false;
       for (const child of children) {
-        if (skipSkillArguments && child instanceof Spacer) {
+        if (skipSkillArguments && typeof ui.Spacer === "function" && child instanceof ui.Spacer) {
           row += child.render(width).length;
           continue;
         }

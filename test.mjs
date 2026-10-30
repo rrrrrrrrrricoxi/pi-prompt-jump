@@ -3,7 +3,7 @@ import {pathToFileURL} from 'node:url';
 import {mkdtempSync,readFileSync,writeFileSync,existsSync,rmSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
-import { root, tuiPath, tuiRoot, jiti } from './tests/runtime.mjs';
+import { root, tuiPath, tuiRoot, jiti, hostVersion, require } from './tests/runtime.mjs';
 const {Container,Text,ScrollView,VStack,visibleWidth,parseColor,foregroundAnsi,backgroundAnsi,matchesKey}=await import(pathToFileURL(tuiPath));
 const {VIEWPORT_TUI}=await import(pathToFileURL(`${tuiRoot}/dist/tui.js`));
 const {initTheme,getMarkdownTheme,theme,loadThemeFromPath,setThemeInstance,getAvailableThemesWithPaths,setTerminalColors,setTerminalColorScheme}=await import(pathToFileURL(`${root}/dist/modes/interactive/theme/theme.js`));
@@ -102,11 +102,73 @@ replacement.dispose(); assert.equal(currentRoot,original);
 const next=installStrip(tui,theme); const otherRoot=new VStack([new Text('another extension',0,0)]); currentRoot=otherRoot;
 next.dispose(); assert.equal(currentRoot,otherRoot);
 assert.equal(installStrip({...tui,mode:'regular'},theme),undefined);
-assert.equal(installStrip(tui,theme,undefined,'1.1.0'),undefined);
-assert.equal(installStrip(tui,theme,undefined,'9.0.0'),undefined);
 assert.equal(currentRoot,otherRoot,'unsupported host leaves the foreign root untouched');
 assert.equal(installStrip({...tui,getMountedRoots:undefined},theme),undefined);
 assert.ok(renders>0);
+// Missing host exports must load safely; a changed VERSION label alone must not block mounting.
+const capabilityDir=mkdtempSync(join(tmpdir(),'pi-prompt-jump-capabilities-'));
+try {
+ const {createJiti}=require('jiti');
+ const codingPath=join(root,'dist/index.js');
+ const coding=await import(pathToFileURL(codingPath));
+ const ui=await import(pathToFileURL(tuiPath));
+ async function adapted({missingHost,missingUI,version}={}) {
+  const fixture=(name,path,exports,missing)=>{
+   const file=join(capabilityDir,`${name}-${missing||'complete'}-${version||'native'}.mjs`);
+   const names=Object.keys(exports).filter(key=>key!=='default' && key!==missing && !(version && key==='VERSION'));
+   writeFileSync(file,`export { ${names.join(',')} } from ${JSON.stringify(pathToFileURL(path).href)};\n`+
+    (version && name==='host'?`export const VERSION=${JSON.stringify(version)};\n`:''));
+   return file;
+  };
+  const loader=createJiti(import.meta.url,{fsCache:false,moduleCache:false,alias:{
+   '@earendil-works/pi-coding-agent':fixture('host',codingPath,coding,missingHost),
+   '@earendil-works/pi-tui':fixture('ui',tuiPath,ui,missingUI),
+  }});
+  // Import the complete entry as well: missing exports must not fail before guards run.
+  await loader.import(new URL('./index.ts',import.meta.url).pathname);
+  return loader.import(new URL('./controller.ts',import.meta.url).pathname);
+ }
+ const compatible=await adapted({version:'77.88.99-fixture'});
+ currentRoot=original;
+ const arbitrary=compatible.installStrip(tui,theme);
+ assert.ok(arbitrary?.mounted,'same capabilities with arbitrary release label mount');
+ arbitrary.dispose(); assert.equal(currentRoot,original);
+ for(const missingHost of ['UserMessageComponent','SkillInvocationMessageComponent']) {
+  const candidate=await adapted({missingHost}); let reason;
+  assert.equal(candidate.installStrip(tui,theme,undefined,value=>{reason=value;}),undefined);
+  assert.match(reason,new RegExp(missingHost)); assert.equal(currentRoot,original);
+ }
+ for(const missingUI of ['Container','Spacer','ScrollView','VStack','isViewportTUI','parseColor','truncateToWidth','visibleWidth']) {
+  const candidate=await adapted({missingUI}); let reason;
+  assert.equal(candidate.installStrip(tui,theme,undefined,value=>{reason=value;}),undefined);
+  assert.match(reason,new RegExp(missingUI)); assert.equal(currentRoot,original);
+ }
+ // Native methods and concrete renderer/scroll shapes are checked before layout mutation.
+ for(const [prototype,key] of [[UserMessageComponent.prototype,'rebuild'],[SkillInvocationMessageComponent.prototype,'setExpanded']]) {
+  const saved=prototype[key];
+  try { prototype[key]=undefined; let reason;
+   assert.equal(installStrip(tui,theme,undefined,value=>{reason=value;}),undefined);
+   assert.match(reason,/native/); assert.equal(currentRoot,original);
+  } finally { prototype[key]=saved; }
+ }
+ for(const key of ['getMountedRoots','setLayoutRoot','requestRender']) {
+  let reason;
+  assert.equal(installStrip({...tui,[key]:undefined},theme,undefined,value=>{reason=value;}),undefined);
+  assert.match(reason,new RegExp(key)); assert.equal(currentRoot,original);
+ }
+ for(const key of ['getContentWidth','scrollTo','scrollToEnd']) {
+ const saved=scroll[key];
+ try { scroll[key]=undefined; let reason;
+  assert.equal(installStrip(tui,theme,undefined,value=>{reason=value;}),undefined);
+  assert.match(reason,/ScrollView shape/); assert.equal(currentRoot,original);
+ } finally { scroll[key]=saved; }
+ }
+ const malformed=new VStack([]); malformed.children.push(null);
+ currentRoot=malformed; let reason;
+ assert.equal(installStrip(tui,theme,undefined,value=>{reason=value;}),undefined);
+ assert.match(reason,/component shape/); assert.equal(currentRoot,malformed);
+ currentRoot=original;
+} finally { rmSync(capabilityDir,{recursive:true,force:true}); }
 // Register and exercise the actual extension handlers, not just navigation helpers.
 // Isolate UI preferences without creating/writing a file or loading user authentication.
 const previousAgent=process.env.PI_CODING_AGENT_DIR;
@@ -149,12 +211,13 @@ try {
   const api={getCommands:()=>[],on:(event,handler)=>hooks.set(event,handler),registerCommand:(name,definition)=>commands.set(name,definition),registerShortcut(){}};
   // Any new execution/model/history API calls fail instead of being silently mocked.
   extension.default(new Proxy(api,{get:(target,key)=>{assert.ok(key in target,`Unexpected API: ${String(key)}`);return target[key];}}));
+  assert.deepEqual([...commands.keys()],['prompt-jump'],'one slash command; no sticky-prompt alias');
   const ctx={mode:'tui',hasUI:true,ui:{
    notify:(message,type)=>notifications.push({message,type}),
    select:async(title,options)=>{menus.push({title,options});return choice?.(options);},
    setWidget:(_key,factory)=>{widgetCalls++;widget?.dispose();widget=factory?.(renderer,theme);},
   }};
-  return {ctx,hooks,notifications,menus,command:args=>commands.get('sticky-prompt').handler(args,ctx),jump:args=>commands.get('prompt-jump').handler(args,ctx),choose:fn=>{choice=fn;},get widgetCalls(){return widgetCalls;}};
+  return {ctx,hooks,notifications,menus,command:args=>commands.get('prompt-jump').handler(args,ctx),jump:args=>commands.get('prompt-jump').handler(args,ctx),complete:prefix=>commands.get('prompt-jump').getArgumentCompletions(prefix),choose:fn=>{choice=fn;},get widgetCalls(){return widgetCalls;}};
  }
  currentRoot=original;
  const active=runtime(); active.hooks.get('session_start')({},active.ctx);
@@ -172,22 +235,33 @@ try {
  active.choose(options=>{active.hooks.get('session_switch')({},active.ctx);return options[0];});
  await active.jump('list'); assert.equal(scroll.scrollTop,anchors[1].row); active.menus.pop();
  await active.jump('invalid'); assert.equal(active.notifications.pop().type,'warning');
- active.choose(undefined);
+ // Completion only returns the four public arguments and cannot alter UI or state.
  const scrollBefore={top:scroll.scrollTop,following:scroll.isFollowingEnd};
- await active.command(''); // Cancel: no preference, layout, or notification changes.
- assert.match(active.menus[0].title,/preference: On; mounted in fullscreen/);
- assert.deepEqual(active.menus[0].options,['On (current preference)','Off']);
- assert.equal(currentRoot,mountedRoot); assert.equal(existsSync(preference),false);
+ for(const [prefix,expected] of [['',['on','off','status','list']],['o',['on','off']],['of',['off']],['s',['status']],['l',['list']],['unknown',[]],['on ',[]]]) {
+  const suggestions=await active.complete(prefix);
+  assert.deepEqual(suggestions,expected.map(value=>({value,label:value})));
+ }
+ assert.equal(currentRoot,mountedRoot); assert.equal(active.menus.length,0);
  assert.equal(active.notifications.length,0); assert.equal(active.widgetCalls,1);
- active.choose(options=>options[1]); await active.command('   ');
+ assert.equal(existsSync(preference),false);
+ for(const action of ['', '   ', 'current', 'prev', 'next', 'last', 'back', 'end', 'invalid']) {
+  await active.command(action);
+  assert.equal(active.menus.length,0,'usage must not open a menu');
+  const notification=active.notifications.pop();
+  assert.equal(notification.message,'Usage: /prompt-jump [on | off | status | list]');
+  assert.equal(notification.type,action.trim()?'warning':'info');
+ }
+ assert.equal(currentRoot,mountedRoot); assert.equal(existsSync(preference),false);
+ assert.deepEqual({top:scroll.scrollTop,following:scroll.isFollowingEnd},scrollBefore);
+ await active.command('off');
  assert.equal(saved(),false); assert.equal(currentRoot,original);
  await active.command('status'); assert.match(active.notifications.at(-1).message,/preference: disabled; not mounted/);
  const disabled=runtime(); disabled.hooks.get('session_start')({},disabled.ctx);
  assert.equal(disabled.widgetCalls,0); // Persisted Off survives extension recreation.
  await disabled.command('');
- assert.deepEqual(disabled.menus.at(-1).options,['On','Off (current preference)']);
+ assert.equal(disabled.menus.length,0); assert.match(disabled.notifications.at(-1).message,/Usage: \/prompt-jump/);
  assert.equal(saved(),false); assert.equal(currentRoot,original);
- disabled.choose(options=>options[0]); await disabled.command('');
+ await disabled.command('on');
  assert.equal(saved(),true); assert.notEqual(currentRoot,original); // Accessible while disabled.
  const menusBefore=disabled.menus.length;
  await disabled.command(' off '); assert.equal(saved(),false); assert.equal(currentRoot,original);
@@ -212,10 +286,12 @@ try {
  failedSave.hooks.get('session_shutdown')(); assert.equal(currentRoot,original);
  process.env.PI_CODING_AGENT_DIR=preferenceDir;
  const regular=runtime({...tui,mode:'regular'}); regular.hooks.get('session_start')({},regular.ctx);
- await regular.command(''); assert.match(regular.menus.at(-1).title,/preference: On; not mounted/);
- regular.choose(options=>options[0]); await regular.command('');
+ await regular.command(''); assert.equal(regular.menus.length,0);
+ await regular.command('on');
  assert.equal(saved(),true); assert.equal(currentRoot,original);
- assert.match(regular.notifications.at(-1).message,/unavailable/);
+ assert.match(regular.notifications.at(-1).message,/unavailable: requires fullscreen mode/);
+ await regular.command('status');
+ assert.match(regular.notifications.at(-1).message,/not mounted \(requires fullscreen mode\)/);
  regular.hooks.get('session_shutdown')();
  for(const [mode,hasUI] of [['rpc',true],['json',false],['print',false],['tui',false]]) {
   const headless=runtime(); headless.ctx.mode=mode; headless.ctx.hasUI=hasUI;
@@ -267,4 +343,5 @@ try {
   text=>{const name=matchingTemplate(text,matchers);return name?`/${name}`:undefined;});
  assert.equal(labeled.anchors[0].label,'/exact');
 } finally { rmSync(templateDir,{recursive:true,force:true}); }
-console.log('PASS: standalone template labels/precedence, prompt picker cancellation and branch invalidation, failed-save consistency, no-UI lifecycle guards; On/Off menu, cancellation, explicit commands, persisted preferences, original layout and safe no-UI/RPC status; Option+Shift+arrow registration/terminal decoding and actual shortcut handlers; real Pi light/dark/system themes, truecolor/256-color styling and theme switching, preceding prompt selection, between-prompt scrolling, actual user/skill render heights, resize/Unicode/ANSI, one-row strip, click without focus steal, prev/next/back/end, tree reset, reload/restore and incompatible-mode guards');
+console.log(`Runtime: Pi ${hostVersion} at ${root}`);
+console.log('PASS: capability gates, missing-export startup, arbitrary-version compatible fixture; standalone template labels/precedence, prompt picker cancellation and branch invalidation, failed-save consistency, no-UI lifecycle guards; four /prompt-jump arguments, prefix completions without side effects, usage without modal, removed navigation routes, explicit commands, persisted preferences, original layout and safe no-UI/RPC status; Option+Shift+arrow registration/terminal decoding and actual shortcut handlers; real Pi light/dark/system themes, truecolor/256-color styling and theme switching, preceding prompt selection, between-prompt scrolling, actual user/skill render heights, resize/Unicode/ANSI, one-row strip, click without focus steal, prev/next/back/end, tree reset, reload/restore and incompatible-mode guards');

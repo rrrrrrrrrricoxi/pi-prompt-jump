@@ -1,45 +1,38 @@
-# Test results — v0.2.0
+# Test results — v0.3.0 candidate
 
-Tested locally on macOS with Node.js v26.11.1 and installed Pi 1.3.0. No package was published or installed into the active user configuration during testing.
+Tested locally on macOS with Node.js v26.11.1 on 2026-10-30. Tests used the installed managed Pi 1.4.0 and a retained Pi 1.3.0 runtime. No package was published or installed into the active user configuration.
 
-## Component and handler tests
+## Current evidence
 
-`npm test -- /path/to/installed/pi-coding-agent` passed against real Pi user/skill components and themes with a simulated fullscreen root. Coverage includes rendered-height targets, Unicode/wrapping, ANSI label sanitization, light/dark/system themes, truecolor/256-color widths, shortcut decoding/handlers, template labels/precedence, picker cancellation/invalidation, preference-save failures, no-UI guards, and layout ownership/cleanup.
+| Check | Pi 1.3.0 | Pi 1.4.0 |
+| --- | --- | --- |
+| Native component and extension-handler suite | Passed | Passed |
+| Real CLI pseudo-terminal suite | Passed before four-action interface | Passed |
+| Offline npm archive, exact eleven-file allowlist, extracted-entry CLI suite | Not rerun | Passed |
 
-## Real CLI pseudo-terminal smoke test
+Commands: `npm test -- /path/to/pi-coding-agent`, `npm run test:terminal -- /path/to/pi-coding-agent`, and `npm run test:package -- /path/to/pi-coding-agent`. Plain `npm test` also passed and selected the current managed Pi 1.4.0. Tests load real host modules; component tests simulate the fullscreen root and terminal.
 
-`npm run test:terminal -- /path/to/installed/pi-coding-agent` passed. This runs the installed Pi CLI in a POSIX pseudo-terminal, with temporary HOME/settings/session directories and only the package plus a test-only deterministic provider/probe.
+The component suite verifies missing native/UI exports, missing native and renderer methods, incompatible scroll shapes, and unchanged capabilities under the synthetic release label `77.88.99-fixture`. Unsupported mounts leave the existing root unchanged. The synthetic label proves that version text alone does not decide compatibility; it does not test a future Pi release.
 
-Verified through terminal input and observation of the actual mounted layout:
+Existing checks also passed: final rendered heights, Unicode/wrapping, ANSI sanitization, native skill anchors, real light/dark/system themes, truecolor/256-color widths, shortcuts, prompt templates, picker cancellation and branch invalidation, preference-save failures, no-UI guards, layout ownership, reload, and cleanup. The command suite checks one registered slash command with no old alias, only the four `/prompt-jump` arguments, prefix-filtered asynchronous completion without side effects, bare usage without a modal, rejected extra subcommands, status, On/Off persistence, prompt-picker selection/cancellation, branch invalidation, and useful unsupported-renderer status.
 
-- Fullscreen startup and exactly one mounted root.
-- Three streamed synthetic responses; follow-end behavior, a jump while streaming, stable scroll position while output grows, and return to following.
-- Alt+Shift+Up/Down using xterm modified-arrow sequences and `/prompt-jump back`.
-- Prompt-picker selection and Escape cancellation.
-- SGR mouse press/release on the strip without changing editor focus or unsubmitted text.
-- SIGWINCH resizing at 40×12, 100×36, and 80×24; jump targets recomputed correctly.
-- On/off preference persistence and actual `/reload` without duplicate roots.
-- `/new`, `/resume`, and `/tree` navigation with correct anchors and bookmark invalidation.
-- Import of a synthetic 1,000-prompt / 2,000-message session, picker selection, first/last jumps, and resize.
-- `/quit` shuts down cleanly with exit status zero.
+The actual-CLI PTY suite verifies bare `/prompt-jump` usage without a modal, real Tab argument completion, status, prompt picker and cancellation, startup, streaming/follow-end, modified arrows, native Ctrl+End, prompt selection/cancellation, mouse clicks without focus/text loss, resize, On/Off persistence, `/reload`, `/new`, `/resume`, `/tree`, and a 1,000-prompt / 2,000-message fixture. Every generated response came from the deterministic local provider with zero model tokens. Temporary HOME/settings/session directories isolate test state; the fail-closed network guard stayed silent. The package check repeats this suite against the extracted archive entry. No provider/probe test code is shipped.
 
-All four generated assistant responses were produced by the local fixture with zero model tokens. A preloaded network guard rejects fetch, socket connections, and ordinary DNS lookup; it remained silent. Provider credentials are not passed into the child. The fixture/probe is not included in the published package manifest or npm file list.
+## Current Fold preview — parent verification
 
-This is automated PTY testing, **not** a manual test in every terminal application. OS shortcut interception, physical trackpad behavior, tmux/SSH forwarding, Windows, and other third-party layout extensions remain unverified. The component suite verifies cleanup when a foreign root replaces the layout, but this is not blanket compatibility with every extension.
+Earlier parent previews passed with Pi 1.4.0 and Fold 3.1.0 on MacBook and CCC, but they predate the current four-action interface. The parent task must rerun integration checks for this interface. Physical visual acceptance by the user remains pending. These previews do not establish both extension loading orders or repair the legacy component fixture.
 
-## Compact renderer coexistence
+## Limits and outstanding integration
 
-`npm run test:coexistence` passed against the sibling `compact-tool-renderers` source with Pi 1.3.0. The test loads both complete extension entry points in both orders, then registers again after shutdown. It uses native user, assistant, and tool-execution components with invented records; no execution, history-write, or model API is provided.
+- The optional legacy `tests/coexistence.mjs` fails with the current sibling Fold source at its obsolete renderer registration assumption: `resolver is not a function`. The fixture is unchanged. This result does not establish current Fold compatibility; the separate parent preview evidence is recorded above.
+- Passing capability checks does not guarantee behavior on every Pi release. The adapter still inspects native card identities and layout shapes.
+- Automated PTY input does not establish physical OS/terminal shortcut forwarding, trackpad behavior, mosh/tmux forwarding, Windows support, or compatibility with every third-party layout extension.
+- No benchmark was rerun for v0.3.0. Historical measurements below describe an older synthetic fixture.
+- Commit, tag, push, publication, installation, active Pi configuration changes, registry artifact comparison, and catalog discovery are outside this package task.
 
-Verified collapsed/expanded template, thinking, and success-group heights against final native rendering; wrapped/Unicode text; independent Alt+G/T/I and Alt+Shift+arrow routing; back/end; one strip wrapper after reload; replacement of all three renderer input listeners; foreign-root ownership; native prototype restoration; and exact recorded source text. The strip does not patch component render methods.
+## Historical benchmark — v0.2.0, Pi 1.3.0
 
-The combined real-CLI PTY run uses `PI_COMPACT_RENDERER_PATH` and the same deterministic provider as the standalone run. It checks terminal routing and lifecycle with both extensions loaded. This fixture does not execute real tools; the native-component coexistence suite exercises tool-group expansion.
-
-## Shipped package validation
-
-`npm run test:package -- /path/to/installed/pi-coding-agent` passed. It creates the npm archive locally with offline mode and lifecycle scripts disabled, checks the exact eleven-file allowlist and MIT/extension manifest, extracts it into a temporary directory, and reruns the complete actual-CLI smoke suite against the **extracted package entry**, not the source checkout. No dependencies are installed. The test-only provider/probe remains in the source checkout and is not shipped.
-
-## Synthetic long-session benchmark
+These measurements were recorded for v0.2.0. They were not rerun for this candidate.
 
 `npm run test:benchmark -- /path/to/installed/pi-coding-agent` used real Pi user and assistant components with repeated prose and fenced code blocks, at 80 columns. Each case contains two messages per prompt. Warm figures summarize 30 sequential observations; cold and resize figures each come from one observation.
 
@@ -55,9 +48,6 @@ Conclusion: navigation was functional in the actual CLI at 1,000 prompts. Cached
 
 The benchmark records every warm observation and unrounded summaries in local `test-results/performance.json`; that generated directory is ignored by Git and excluded from the npm package. Re-run the benchmark to reproduce measurements rather than treating this table as a universal performance promise.
 
-## Release verification boundaries
+## Final interface acceptance — 2026-10-30
 
-- v0.2.0 source is prepared for the parent integration/release task. No v0.2.0 tag, commit, push, npm publication, installation, or activation was performed by this compatibility task. Credentials are not included in the repository or package.
-- A short demo is optional release polish; it has not been recorded.
-- Registry artifact and catalog discovery checks are separate post-publication steps; the local tests above do not establish either one.
-- Installation into the active user configuration is not part of these tests.
+Both reviewed hosts passed the actual-terminal four-action preview with Pi 1.4.0 and Fold 3.1.0: bare usage without a modal, status, prompt picker, on/off, previous/next shortcuts, and Fold on/off. The user accepted both previews and the native four-option completion presentation. This does not establish support for every terminal or future Pi release.
