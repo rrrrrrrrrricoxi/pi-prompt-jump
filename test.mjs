@@ -4,7 +4,7 @@ import {mkdtempSync,readFileSync,writeFileSync,existsSync,rmSync} from 'node:fs'
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import { root, tuiPath, tuiRoot, jiti, hostVersion, require } from './tests/runtime.mjs';
-const {Container,Text,ScrollView,VStack,visibleWidth,parseColor,foregroundAnsi,backgroundAnsi,matchesKey}=await import(pathToFileURL(tuiPath));
+const {Box,Container,Text,ScrollView,VStack,visibleWidth,parseColor,foregroundAnsi,backgroundAnsi,matchesKey}=await import(pathToFileURL(tuiPath));
 const {VIEWPORT_TUI}=await import(pathToFileURL(`${tuiRoot}/dist/tui.js`));
 const {initTheme,getMarkdownTheme,theme,loadThemeFromPath,setThemeInstance,getAvailableThemesWithPaths,setTerminalColors,setTerminalColorScheme}=await import(pathToFileURL(`${root}/dist/modes/interactive/theme/theme.js`));
 const {UserMessageComponent}=await import(pathToFileURL(`${root}/dist/modes/interactive/components/user-message.js`));
@@ -38,6 +38,36 @@ const opaqueGroup=new Group('expanded group\nsecond row\nthird row',0,0);
 opaqueGroup.children=[new Text('misleading internal child',0,0)];
 const opaqueDoc=new Container(); opaqueDoc.addChild(opaqueGroup); opaqueDoc.addChild(new UserMessageComponent('after group',getMarkdownTheme(),1));
 assert.equal(nav.collectPrompts(opaqueDoc,80).anchors[0].row,opaqueGroup.render(80).length);
+
+// Fold keeps canonical history intact and publishes its current rendered children.
+// Measuring the canonical tool at full width resets its bounded scroll position.
+const projectedKey=Symbol.for('compact-renderer:projected-children:v1');
+const projectedDoc=new Container(), projectedChat=new Container();
+projectedDoc.addChild(projectedChat);
+const measuredWidths=[];
+let paneWidth=76, paneOffset=8, workOpen=true, foldEnabled=true;
+const pane={render(width){measuredWidths.push(width);if(width!==paneWidth)paneOffset=0;paneWidth=width;return Array(4).fill('recorded output');},invalidate(){}};
+const workChild=new Box(2,0);workChild.addChild(pane);
+const followingPrompt=new UserMessageComponent('After folded work',getMarkdownTheme(),1);
+projectedChat.addChild(pane);projectedChat.addChild(followingPrompt);
+const canonicalRender=projectedChat.render;
+projectedChat.render=function(width){
+ const canonical=this.children;
+ if(!foldEnabled){delete this[projectedKey];return canonicalRender.call(this,width);}
+ this[projectedKey]=[new Text('Work header',0,0),...(workOpen?[workChild]:[]),followingPrompt];
+ this.children=this[projectedKey];
+ try{return canonicalRender.call(this,width);}finally{this.children=canonical;}
+};
+let projected=nav.collectPrompts(projectedDoc,80);
+assert.equal(paneOffset,8,'prompt measurement preserves expanded pane offset');
+assert.ok(measuredWidths.every(width=>width===76),'only the rendered inset width reaches the pane');
+assert.equal(projected.anchors[0].row,5,'anchor includes the visible work header and body');
+workOpen=false;measuredWidths.length=0;
+projected=nav.collectPrompts(projectedDoc,80);
+assert.equal(projected.anchors[0].row,1,'collapse refreshes projection before measuring anchors');
+assert.equal(measuredWidths.length,0,'collapsed work does not render hidden tool bodies');
+foldEnabled=false;
+assert.equal(nav.collectPrompts(projectedDoc,80).anchors[0].row,4,'Fold off returns to canonical layout');
 
 assert.ok(!nav.firstLine('\x1b]52;c;secret\x07safe').includes('\x1b'));
 const scroll=new ScrollView(doc,{follow:'end',primary:true});

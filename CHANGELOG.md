@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 — 2026-11-02
+
+- Preserve scrolling and `more` paging in expanded Pi Fold cards. Prompt anchors now follow Fold's rendered layout, including indentation and collapsed work, instead of measuring hidden canonical rows at a different width.
+
 ## 0.3.0 — candidate
 
 - Use only `/prompt-jump [on | off | status | list]`. The bare command shows short usage text without opening a menu. Add prefix-filtered argument completion. Remove the old command and extra navigation subcommands; keep previous/next keyboard shortcuts and the prompt picker.

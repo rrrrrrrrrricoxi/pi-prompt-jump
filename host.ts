@@ -42,6 +42,10 @@ export function skillBlock(component: Component): { name: string; userMessage?: 
 }
 export function containerChildren(component: Component): Component[] | undefined {
   // Subclasses can add spacing or renderer groups. Measure them as one unit.
-  return typeof ui.Container === "function" && component.constructor === ui.Container && Array.isArray((component as any).children)
-    ? (component as any).children : undefined;
+  if (typeof ui.Container !== "function" || component.constructor !== ui.Container) return undefined;
+  // Fold's visible tree owns indentation and collapsed rows; canonical children
+  // are retained for session history and must not be measured at another width.
+  const projected = (component as any)[Symbol.for("compact-renderer:projected-children:v1")];
+  const children = Array.isArray(projected) ? projected : (component as any).children;
+  return Array.isArray(children) ? children : undefined;
 }

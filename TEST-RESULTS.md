@@ -1,4 +1,14 @@
-# Test results — v0.3.0 candidate
+# Test results
+
+## v0.3.1 scrolling fix — 2026-11-02
+
+The native component regression fails before the fix and passes after it: measuring Fold's canonical tool at full width resets an inset pane's scroll position. Collection now refreshes and follows the rendered projection. The test also covers collapsed work and Fold off.
+
+On Pi 1.4.0, the component suite and real CLI/PTY suite pass. With both plugins enabled, Fold's new `codemode-wheel` regression passes at 72, 110 and 160 columns: terminal mouse clicks, body/footer wheel scrolling in both directions, inspection, prompt navigation, and Fold off/on and collapse/expand. The existing nested inspection regression and all 35 Fold suites pass. Fixtures use invented content and make no model requests. The user accepted both physical terminal previews on 2026-11-02. Publication follows this review.
+
+The synthetic prompt collection benchmark measured warm medians of 0.25 ms for 100 prompts, 2.11 ms for 1,000, and 12.04 ms for 5,000 (30 samples each). These are local collection timings, not complete terminal-frame latency or a before/after comparison.
+
+## v0.3.0 candidate evidence
 
 Tested locally on macOS with Node.js v26.11.1 on 2026-10-30. Tests used the installed managed Pi 1.4.0 and a retained Pi 1.3.0 runtime. No package was published or installed into the active user configuration.
 

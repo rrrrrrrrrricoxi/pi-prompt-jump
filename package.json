@@ -1,6 +1,6 @@
 {
   "name": "pi-prompt-jump",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "description": "Jump between user prompts in Pi's fullscreen conversation without changing session history.",
   "license": "MIT",

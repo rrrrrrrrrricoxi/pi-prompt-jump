@@ -12,6 +12,9 @@ export function firstLine(text: string): string {
 
 // Use actual rendered heights, so wrapping and compact/expanded tools do not break targets.
 export function collectPrompts(document: Component, width: number, labelFor: (text: string) => string | undefined = () => undefined): { anchors: PromptAnchor[]; height: number } {
+  // Refresh rendered projections before traversing them (expand/collapse and
+  // Fold on/off can change the visible tree since the previous frame).
+  document.render(width);
   const anchors: PromptAnchor[] = [];
   let row = 0;
   function visit(component: Component) {
